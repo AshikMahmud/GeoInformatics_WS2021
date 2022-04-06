@@ -180,28 +180,31 @@ interested_stations_indices = (dfNRW_stations.index == 216) | (dfNRW_stations.in
                               (dfNRW_stations.index == 6264) | (dfNRW_stations.index == 5468) | \
                               (dfNRW_stations.index == 7330)
 
-dfNRW_stations = dfNRW_stations[interested_stations_indices]
+df_stations_interested = dfNRW_stations[interested_stations_indices]
 #%%
 
-dfNRW_stations.shape
+df_stations_interested.shape
 #print("Number of stations in NRW: \n", dfNRW.count())
 #%%
 # Download TS Data from FTP Server
 # Add the names of the zip files only to a list.
-local_zip_list = []
-station_ids_selected = list(dfNRW_stations.index)
+def upload_selected_zips(df_selected_stations):
+    local_zip_list = []
+    station_ids_selected = list(df_selected_stations.index)
 
-for station_id in station_ids_selected:
-    try:
-        fname = df_zips["name"][station_id]
-        print(fname)
-        grab_file(ftp_dir + fname, local_ftp_ts_dir + fname)
-        local_zip_list.append(fname)
-    except:
-        print("WARNING: TS file for key %d not found in FTP directory." % station_id)
+    for station_id in station_ids_selected:
+        try:
+            fname = df_zips["name"][station_id]
+            print(fname)
+            grab_file(ftp_dir + fname, local_ftp_ts_dir + fname)
+            local_zip_list.append(fname)
+        except:
+            print("WARNING: TS file for key %d not found in FTP directory." % station_id)
+    return local_zip_list
 #%%
 # Number of obtained stations
-len(local_zip_list)
+local_zip_list_interested_stations = upload_selected_zips(df_stations_interested)
+len(local_zip_list_interested_stations)
 # %%
 # Join (Merge) the Time Series Columns
 def prec_ts_to_df(fname):
@@ -222,7 +225,7 @@ def prec_ts_to_df(fname):
 #%%
 # Select hourly precipitation data from TS and join it with each other by station_id
 # PRECIPITATION
-def prec_ts_merge():
+def prec_ts_merge(local_zip_list):
     # Very compact code.
     df = pd.DataFrame()
     for elt in local_zip_list:
@@ -244,7 +247,7 @@ def prec_ts_merge():
     return(df)
 #%%
 
-df_merged_ts = prec_ts_merge()
+df_merged_ts = prec_ts_merge(local_zip_list_interested_stations)
 #%%
 
 df_merged_ts.shape
@@ -288,6 +291,7 @@ def plot_ts_average_bars_line(df, county_name, graph_colors):
                  ' County from 16 April 2018 to 16 August 2018')
     ax.set_ylabel('Precipitation (mm/day)')
     ax.set_xlabel('Date')
+    ax.set_ylim([0, 50])
 
     ax.bar(df.index, df['daily_precp'], linewidth=1.5, color=graph_colors[0], edgecolor=graph_colors[1],
            label='Daily Precipitation')
@@ -295,6 +299,7 @@ def plot_ts_average_bars_line(df, county_name, graph_colors):
     axb.set_ylabel('Cumulative Precipitation (mm)')
     axb.plot(df.index, df['cumsum_daily_precp'], linewidth=3.0, color=graph_colors[2],
              label='Cumulative Precipitation')
+    axb.set_ylim([0, 250])
     axb.grid(None)
 
     #set ticks every week
@@ -341,8 +346,10 @@ def plot_ts_bars(df, county_name):
         ax[idx].xaxis.set_major_formatter(mdates.DateFormatter('%b %d'))
         ax[idx].tick_params(axis='x', rotation=45)
         ax[idx].set_title('Station ID: ' + str(column_name), fontsize=30)
+        ax[idx].yaxis.set_tick_params(labelleft=True)
         ax[idx].set_ylabel('Precipitation (mm/day)')
         ax[idx].set_xlabel('Date')
+        ax[idx].set_ylim([0, 80])
 
     fig.tight_layout(rect=[0.03, 0.03, 1, 0.95])
     plt.suptitle('Daily Precipitation of ' + county_name +
@@ -353,6 +360,93 @@ def plot_ts_bars(df, county_name):
 
 plot_ts_bars(df_ts_oe_daily, 'OE')
 plot_ts_bars(df_ts_hsk_daily, 'HSK')
+#%%
+# Plot ts of the both counties in one graph
+def plot_subplots_bars(ax, dict_idxs, df, county_name):
+    cmap = plt.get_cmap('tab10')
+    colors = iter(cmap(np.arange(cmap.N)))
+
+    for idx, column_name in dict_idxs.items():
+        ax[idx].bar(df.index, df[column_name], color=next(colors))
+        # set ticks every week
+        ax[idx].xaxis.set_major_locator(mdates.WeekdayLocator())
+        # format date
+        ax[idx].xaxis.set_major_formatter(mdates.DateFormatter('%b %d'))
+        ax[idx].tick_params(axis='x', rotation=45)
+        ax[idx].yaxis.set_tick_params(labelleft=True)
+        ax[idx].set_title(county_name + ' - Station ID: ' + str(column_name), fontsize=30)
+        ax[idx].set_ylabel('Precipitation (mm/day)')
+        ax[idx].set_xlabel('Date')
+
+def plot_ts_all_counties_bars():
+    plt.style.use('ggplot')
+    font = {'family': 'Times New Roman', 'weight': 'bold', 'size': 23}
+    plt.rc('font', **font)
+
+    fig, ax = plt.subplots(3, 3, sharey='all', figsize=(32, 27))
+    ax = ax.flatten()
+
+    oe_idxs = range(len(df_ts_oe_daily.columns))
+    dict_oe_idxs = dict(zip(oe_idxs, df_ts_oe_daily.columns))
+
+    hsk_idxs = range(len(df_ts_oe_daily.columns), len(df_ts_oe_daily.columns) + len(df_ts_hsk_daily.columns))
+    dict_hsk_idxs = dict(zip(hsk_idxs, df_ts_hsk_daily.columns))
+
+    plot_subplots_bars(ax, dict_oe_idxs, df_ts_oe_daily, 'OE')
+    plot_subplots_bars(ax, dict_hsk_idxs, df_ts_hsk_daily, 'HSK')
+
+    fig.tight_layout(rect=[0.03, 0.03, 1, 0.95])
+    plt.suptitle('Daily Precipitation of OE and HSK from 16 April 2018 to 16 August 2018', fontsize=45)
+
+    plt.show()
+
+plot_ts_all_counties_bars()
+#%%
+# Plot cumulative precipitation of the both counties in one graph
+def plot_subplots_lines(ax, dict_idxs, df, county_name, colors):
+
+    for idx, column_name in dict_idxs.items():
+        ax[idx].plot(df.index, df[column_name], color=next(colors), linewidth=3.0)
+        # set ticks every week
+        ax[idx].xaxis.set_major_locator(mdates.WeekdayLocator())
+        # format date
+        ax[idx].xaxis.set_major_formatter(mdates.DateFormatter('%b %d'))
+        ax[idx].tick_params(axis='x', rotation=45)
+        ax[idx].yaxis.set_tick_params(labelleft=True)
+        ax[idx].set_title(county_name + ' - Station ID: ' + str(column_name), fontsize=30)
+        ax[idx].set_ylabel('Precipitation (mm)')
+        ax[idx].set_xlabel('Date')
+
+
+def plot_ts_all_counties_lines():
+    plt.style.use('ggplot')
+    font = {'family': 'Times New Roman', 'weight': 'bold', 'size': 23}
+    plt.rc('font', **font)
+
+    fig, ax = plt.subplots(3, 3, sharey='all', figsize=(32, 27))
+    ax = ax.flatten()
+
+    cmap = plt.get_cmap('tab10')
+    colors = iter(cmap(np.arange(cmap.N)))
+
+    df_oe_cum_sum = df_ts_oe_daily.cumsum(axis=0)
+    df_hsk_cum_sum = df_ts_hsk_daily.cumsum(axis=0)
+
+    oe_idxs = range(len(df_oe_cum_sum.columns))
+    dict_oe_idxs = dict(zip(oe_idxs, df_oe_cum_sum.columns))
+
+    hsk_idxs = range(len(df_oe_cum_sum.columns), len(df_oe_cum_sum.columns) + len(df_hsk_cum_sum.columns))
+    dict_hsk_idxs = dict(zip(hsk_idxs, df_hsk_cum_sum.columns))
+
+    plot_subplots_lines(ax, dict_oe_idxs, df_oe_cum_sum, 'OE', colors)
+    plot_subplots_lines(ax, dict_hsk_idxs, df_hsk_cum_sum, 'HSK', colors)
+
+    fig.tight_layout(rect=[0.03, 0.03, 1, 0.95])
+    plt.suptitle('Cumulative Precipitation of OE and HSK from 16 April 2018 to 16 August 2018', fontsize=45)
+
+    plt.show()
+
+plot_ts_all_counties_lines()
 #%%
 # Plot cumulative precipitation (for each station) for Olpe (OE) and Hochsauerlandkreis (HSK) counties
 
@@ -383,6 +477,7 @@ def plot_ts_cumsum_lines(df, county_name):
                      ' County from 16 April 2018 to 16 August 2018')
     ax.set_ylabel('Cumulative Precipitation (mm)')
     ax.set_xlabel('Date')
+    ax.set_ylim([0, 300])
     ax.legend()
     plt.show()
 
