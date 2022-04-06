@@ -4,6 +4,7 @@ import ftplib
 import codecs
 import matplotlib.pyplot as plt
 import numpy as np
+import scipy.stats
 from datetime import datetime
 from zipfile import ZipFile
 
@@ -277,7 +278,7 @@ filepathname = local_ts_appended_dir + "4_months_total_precipitation .csv"
 print("df_appended_ts saved to: %s" % (filepathname))
 df_total_prec.to_csv(filepathname, sep=";")
 #%%
-# Total precipitation vs Altitude plot
+# Total precipitation vs Altitude bar plot
 df_total_prec_sorted = df_total_prec.sort_values(by=['altitude'], ascending=True)
 plt.style.use('ggplot')
 font = {'family': 'Times New Roman', 'weight': 'bold', 'size': 15}
@@ -292,6 +293,69 @@ plt.xticks(rotation=45)
 plt.title('Total Precipitation in 13 Counties from 16 April 2018 to'
           ' 16 August 2018 vs Altitude of each Station')
 plt.show()
+#%%
+# Total precipitation vs Altitude regression plot
+def regression_plot():
+    x = df_total_prec_sorted['altitude']
+    y = df_total_prec_sorted['4_months_precp']
+
+    cor_coef = x.corr(y)
+
+    left = 0.1
+    bottom = 0.1
+    top = 0.8
+    right = 0.8
+    slope, intercept, r, p, stderr = scipy.stats.linregress(x, y)
+    line = f'Regression line: y={intercept:.2f}+{slope:.4f}x, r={cor_coef:.3f}'
+    font = {'family': 'Times New Roman', 'weight': 'bold', 'size': 15}
+    plt.rc('font', **font)
+    plt.figure(figsize=(8, 8))
+
+    main_ax = plt.axes([left,bottom,right-left,top-bottom])
+    # create axes to the top and right of the main axes and hide them
+    top_ax = plt.axes([left, top, right - left, 1-top])
+    plt.axis('off')
+    right_ax = plt.axes([right, bottom, 1-right, top-bottom])
+    plt.axis('off')
+    main_ax.plot(x,  y, 'ko', alpha=0.5, linewidth=3.0, label='Data points')
+    right_ax.violinplot(y, positions=[0], widths=1., showmedians=True,  showmeans=True)
+    top_ax.violinplot(x, positions=[0], vert=False, widths=1., showmedians=True, showmeans=True)
+    # set the limits to the box axes
+    top_ax.set_xlim(main_ax.get_xlim())
+    top_ax.set_ylim(-1,1)
+    right_ax.set_ylim(main_ax.get_ylim())
+    right_ax.set_xlim(-1,1)
+
+    y_est = intercept + slope * x
+    main_ax.plot(x, y_est, label=line)
+    #main_ax.fill_between(x, y_est - y_err, y_est + y_err, alpha=0.2)
+    main_ax.set_xlabel('Altitude (meters)')
+    main_ax.set_ylabel('Precipitation (mm)')
+    main_ax.legend(loc='upper left')
+
+    plt.show()
+
+
+def calc_tstat_pearson(pearson_coff, sample_size):
+    t = (pearson_coff * np.sqrt(sample_size-2))/np.sqrt(1-(pearson_coff**2))
+    return t
+
+
+def pearson_cor_test():
+    x = df_total_prec_sorted['altitude']
+    y = df_total_prec_sorted['4_months_precp']
+    if len(x) != len(y):
+        return 1
+    data_size = len(x)
+    cor_coef = x.corr(y)
+    t_statistics = calc_tstat_pearson(cor_coef, data_size)
+    p_value = scipy.stats.t.pdf(t_statistics, df=data_size-1)
+    print('T-statistcs: {}'.format(t_statistics))
+    print('P-value: {}'.format(p_value))
+
+
+regression_plot()
+pearson_cor_test()
 #%%
 # Comparison of station altitude from Station Metadata file VS altitudes from DTM
 # Upload file containing both Station Metadata Altitude vs DTM Altitude
