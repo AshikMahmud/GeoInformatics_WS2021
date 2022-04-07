@@ -12,6 +12,8 @@ from matplotlib.ticker import PercentFormatter
 from scipy.interpolate import make_interp_spline
 from matplotlib.gridspec import GridSpec, GridSpecFromSubplotSpec
 #%%
+# Lecture materials were used for the task completion: https://github.com/rolfbecker/MIE_2.02_GeoInfo_WS2020/blob/master/gi0601_DWD_Stations_and_TS_for_TM_soln/gi0601_DWD_Stations_and_TS_for_TM_V002.ipynb
+#%%
 # Connection Parameters
 server = "opendata.dwd.de"
 user = "anonymous"
